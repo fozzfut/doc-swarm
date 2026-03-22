@@ -53,7 +53,11 @@ class CodeAnalyzer:
                 continue
             if f.suffix not in _SOURCE_EXTS:
                 continue
-            if any(part in _SKIP_DIRS or part.endswith(".egg-info") for part in f.parts):
+            try:
+                rel_parts = f.relative_to(self._root).parts
+            except ValueError:
+                continue
+            if any(part in _SKIP_DIRS or part.endswith(".egg-info") for part in rel_parts):
                 continue
 
             rel = str(f.relative_to(self._root)).replace("\\", "/")
