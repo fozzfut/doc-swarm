@@ -75,54 +75,6 @@ class Session:
                 _log.warning("Failed to write %s: %s", page.path, exc)
         return written
 
-    def _save_pages(self) -> None:
-        """Full rewrite of pages JSONL (caller holds lock)."""
-        path = self._dir / "pages.jsonl"
-        import tempfile
-        import os
-        tmp_fd, tmp_path = tempfile.mkstemp(dir=str(self._dir), suffix=".tmp")
-        try:
-            fh = os.fdopen(tmp_fd, "w", encoding="utf-8")
-        except Exception:
-            os.close(tmp_fd)
-            os.unlink(tmp_path)
-            raise
-        try:
-            with fh:
-                for page in self._pages:
-                    fh.write(json.dumps(page.to_dict()) + "\n")
-            os.replace(tmp_path, str(path))
-        except Exception:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-            raise
-
-    def _save_issues(self) -> None:
-        """Full rewrite of issues JSONL (caller holds lock)."""
-        path = self._dir / "issues.jsonl"
-        import tempfile
-        import os
-        tmp_fd, tmp_path = tempfile.mkstemp(dir=str(self._dir), suffix=".tmp")
-        try:
-            fh = os.fdopen(tmp_fd, "w", encoding="utf-8")
-        except Exception:
-            os.close(tmp_fd)
-            os.unlink(tmp_path)
-            raise
-        try:
-            with fh:
-                for issue in self._issues:
-                    fh.write(json.dumps(issue.to_dict()) + "\n")
-            os.replace(tmp_path, str(path))
-        except Exception:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-            raise
-
     def _load(self) -> None:
         """Load persisted pages and issues from JSONL files."""
         with self._lock:
@@ -135,8 +87,8 @@ class Session:
                     if line:
                         try:
                             self._pages.append(DocPage.from_dict(json.loads(line)))
-                        except (json.JSONDecodeError, KeyError, ValueError):
-                            pass
+                        except (json.JSONDecodeError, KeyError, ValueError) as exc:
+                            _log.warning("Skipping corrupt line in %s: %s", pages_path, exc)
             issues_path = self._dir / "issues.jsonl"
             if issues_path.exists():
                 for line in issues_path.read_text(encoding="utf-8").splitlines():
@@ -144,15 +96,16 @@ class Session:
                     if line:
                         try:
                             self._issues.append(DocIssue.from_dict(json.loads(line)))
-                        except (json.JSONDecodeError, KeyError, ValueError):
-                            pass
+                        except (json.JSONDecodeError, KeyError, ValueError) as exc:
+                            _log.warning("Skipping corrupt line in %s: %s", issues_path, exc)
 
     def to_dict(self) -> dict:
-        return {
-            "session_id": self.session_id,
-            "pages": len(self._pages),
-            "issues": len(self._issues),
-        }
+        with self._lock:
+            return {
+                "session_id": self.session_id,
+                "pages": len(self._pages),
+                "issues": len(self._issues),
+            }
 
 
 class SessionManager:

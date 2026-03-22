@@ -47,6 +47,9 @@ class DocVerifier:
             except OSError:
                 continue
 
+            # Normalize line endings so CRLF files don't break regex matching
+            text = text.replace("\r\n", "\n").replace("\r", "\n")
+
             frontmatter, body = self._parse_frontmatter(text)
 
             # Check source_file reference

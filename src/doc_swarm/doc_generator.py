@@ -191,7 +191,11 @@ class DocGenerator:
         if covered:
             lines.append("## Documented\n")
             for m in covered:
-                lines.append(f"- `{m}` — [[{Path(m).stem}]]")
+                # Use the same safe_name as generate_api_page to match actual doc filenames
+                safe_name = m.replace("/", "-").replace("\\", "-")
+                if safe_name.endswith(".py"):
+                    safe_name = safe_name[:-3]
+                lines.append(f"- `{m}` — [[{safe_name}]]")
             lines.append("")
 
         return DocPage(
