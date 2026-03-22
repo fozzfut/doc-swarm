@@ -135,7 +135,7 @@ class Session:
                     if line:
                         try:
                             self._pages.append(DocPage.from_dict(json.loads(line)))
-                        except (json.JSONDecodeError, KeyError):
+                        except (json.JSONDecodeError, KeyError, ValueError):
                             pass
             issues_path = self._dir / "issues.jsonl"
             if issues_path.exists():
@@ -144,7 +144,7 @@ class Session:
                     if line:
                         try:
                             self._issues.append(DocIssue.from_dict(json.loads(line)))
-                        except (json.JSONDecodeError, KeyError):
+                        except (json.JSONDecodeError, KeyError, ValueError):
                             pass
 
     def to_dict(self) -> dict:

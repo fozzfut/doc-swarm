@@ -1,6 +1,6 @@
 """DocSwarm -- Multi-agent documentation generator."""
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 from .code_analyzer import CodeAnalyzer
 from .doc_generator import DocGenerator
