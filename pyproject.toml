@@ -21,7 +21,6 @@ classifiers = [
     "Topic :: Software Development :: Documentation",
 ]
 dependencies = [
-    "mcp>=1.6,<2",
     "click>=8.0,<9",
     "pyyaml>=6.0,<8",
 ]
@@ -63,5 +62,5 @@ check_untyped_defs = true
 no_implicit_optional = true
 
 [[tool.mypy.overrides]]
-module = ["mcp.*", "yaml.*", "click.*"]
+module = ["yaml.*", "click.*"]
 ignore_missing_imports = true

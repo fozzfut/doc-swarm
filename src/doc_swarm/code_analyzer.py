@@ -39,11 +39,14 @@ class CodeAnalyzer:
         """Scan source files and return a map of file -> ModuleInfo."""
         modules: dict[str, ModuleInfo] = {}
         base = self._root / scope if scope else self._root
+        base = base.resolve()
+        if not str(base).startswith(str(self._root)):
+            raise ValueError(f"Scope escapes project root: {scope}")
 
         if not base.exists():
             return modules
 
-        for f in sorted(base.rglob("*")):
+        for f in base.rglob("*"):
             if not f.is_file():
                 continue
             if f.suffix not in _SOURCE_EXTS:

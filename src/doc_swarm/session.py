@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .models import DocIssue, DocPage, now_iso
 
 _STORAGE_DIR = Path("~/.doc-swarm").expanduser()
+_log = logging.getLogger("doc_swarm.session")
 
 
 class Session:
@@ -25,12 +28,26 @@ class Session:
     def add_page(self, page: DocPage) -> None:
         with self._lock:
             self._pages.append(page)
-            self._save_pages()
+            self._append_page(page)
+        _log.debug("Added page %s to session %s", page.path, self.session_id)
 
     def add_issue(self, issue: DocIssue) -> None:
         with self._lock:
             self._issues.append(issue)
-            self._save_issues()
+            self._append_issue(issue)
+        _log.debug("Added issue %s to session %s", issue.id, self.session_id)
+
+    def _append_page(self, page: DocPage) -> None:
+        """Append a single page to the JSONL file (caller holds lock)."""
+        path = self._dir / "pages.jsonl"
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(page.to_dict()) + "\n")
+
+    def _append_issue(self, issue: DocIssue) -> None:
+        """Append a single issue to the JSONL file (caller holds lock)."""
+        path = self._dir / "issues.jsonl"
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(issue.to_dict()) + "\n")
 
     @property
     def pages(self) -> list[DocPage]:
@@ -44,22 +61,22 @@ class Session:
 
     def write_docs(self, output_dir: Path) -> list[str]:
         """Write all generated doc pages to the output directory."""
+        with self._lock:
+            pages = list(self._pages)
         written = []
         output_dir.mkdir(parents=True, exist_ok=True)
-        for page in self._pages:
+        for page in pages:
             path = output_dir / page.path
             try:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(page.to_markdown(), encoding="utf-8")
                 written.append(str(page.path))
             except OSError as exc:
-                import logging
-                logging.getLogger("doc_swarm.session").warning(
-                    "Failed to write %s: %s", page.path, exc
-                )
+                _log.warning("Failed to write %s: %s", page.path, exc)
         return written
 
     def _save_pages(self) -> None:
+        """Full rewrite of pages JSONL (caller holds lock)."""
         path = self._dir / "pages.jsonl"
         import tempfile
         import os
@@ -83,6 +100,7 @@ class Session:
             raise
 
     def _save_issues(self) -> None:
+        """Full rewrite of issues JSONL (caller holds lock)."""
         path = self._dir / "issues.jsonl"
         import tempfile
         import os
@@ -107,24 +125,27 @@ class Session:
 
     def _load(self) -> None:
         """Load persisted pages and issues from JSONL files."""
-        pages_path = self._dir / "pages.jsonl"
-        if pages_path.exists():
-            for line in pages_path.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if line:
-                    try:
-                        self._pages.append(DocPage.from_dict(json.loads(line)))
-                    except (json.JSONDecodeError, KeyError):
-                        pass
-        issues_path = self._dir / "issues.jsonl"
-        if issues_path.exists():
-            for line in issues_path.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if line:
-                    try:
-                        self._issues.append(DocIssue.from_dict(json.loads(line)))
-                    except (json.JSONDecodeError, KeyError):
-                        pass
+        with self._lock:
+            self._pages.clear()
+            self._issues.clear()
+            pages_path = self._dir / "pages.jsonl"
+            if pages_path.exists():
+                for line in pages_path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if line:
+                        try:
+                            self._pages.append(DocPage.from_dict(json.loads(line)))
+                        except (json.JSONDecodeError, KeyError):
+                            pass
+            issues_path = self._dir / "issues.jsonl"
+            if issues_path.exists():
+                for line in issues_path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if line:
+                        try:
+                            self._issues.append(DocIssue.from_dict(json.loads(line)))
+                        except (json.JSONDecodeError, KeyError):
+                            pass
 
     def to_dict(self) -> dict:
         return {
@@ -151,6 +172,9 @@ class SessionManager:
             session_id = f"doc-{today}-{seq:03d}"
 
             sess_dir = self._sessions_dir / session_id
+            if sess_dir.exists():
+                session_id = f"doc-{today}-{uuid.uuid4().hex[:6]}"
+                sess_dir = self._sessions_dir / session_id
             sess_dir.mkdir(parents=True, exist_ok=True)
 
             meta = {
@@ -166,6 +190,7 @@ class SessionManager:
 
             session = Session(session_id, sess_dir)
             self._sessions[session_id] = session
+            _log.info("Started session %s for %s", session_id, project_path)
             return session
 
     def get_session(self, session_id: str) -> Session:

@@ -21,7 +21,10 @@ class DocGenerator:
 
     def generate_api_page(self, module_path: str, info: ModuleInfo) -> DocPage:
         """Generate an API reference page for a module."""
-        stem = Path(module_path).stem
+        # Convert src/pkg/utils.py -> api/src-pkg-utils.md to avoid collisions
+        safe_name = module_path.replace("/", "-").replace("\\", "-")
+        if safe_name.endswith(".py"):
+            safe_name = safe_name[:-3]
         title = self._title_from_path(module_path)
 
         lines: list[str] = []
@@ -57,7 +60,7 @@ class DocGenerator:
                 self._render_function(func, lines)
 
         return DocPage(
-            path=f"api/{stem}.md",
+            path=f"api/{safe_name}.md",
             doc_type=DocType.API,
             title=title,
             source_files=[module_path],
@@ -94,6 +97,7 @@ class DocGenerator:
                 )
             lines.append("")
 
+        _log.info("Generated index with %d pages", len(pages))
         return DocPage(
             path="INDEX.md",
             doc_type=DocType.INDEX,

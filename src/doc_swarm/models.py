@@ -20,6 +20,7 @@ def now_iso() -> str:
 
 class DocStatus(str, Enum):
     """Status of a documentation file."""
+    # All values are part of the public API; some reserved for future agent use
     MISSING = "missing"          # code exists, no docs
     OUTDATED = "outdated"        # docs exist but don't match code
     ACCURATE = "accurate"        # docs match code
@@ -38,6 +39,7 @@ class DocType(str, Enum):
 
 class Severity(str, Enum):
     """Severity of a documentation issue."""
+    # All values are part of the public API; some reserved for future agent use
     CRITICAL = "critical"    # docs actively mislead (wrong API, wrong behavior)
     HIGH = "high"            # missing docs for public API
     MEDIUM = "medium"        # outdated examples, stale references
@@ -172,13 +174,13 @@ class DocPage:
         """Render as markdown with YAML frontmatter."""
         lines = ["---"]
         fm = {
-            "title": self.title,
+            **self.frontmatter,  # user keys first
+            "title": self.title,  # standard keys override
             "type": self.doc_type.value,
             "status": self.status.value,
             "source_files": self.source_files,
             "generated_by": self.generated_by,
             "verified_by": self.verified_by,
-            **self.frontmatter,
         }
         lines.append(yaml.dump(fm, default_flow_style=False, sort_keys=False).strip())
         lines.append("---")
@@ -207,12 +209,12 @@ class DocPage:
             path=d.get("path", ""),
             doc_type=DocType(d.get("doc_type", "api")),
             title=d.get("title", ""),
-            source_files=d.get("source_files", []),
-            frontmatter=d.get("frontmatter", {}),
+            source_files=list(d.get("source_files", [])),
+            frontmatter=dict(d.get("frontmatter", {})),
             content=d.get("content", ""),
             status=DocStatus(d.get("status", "draft")),
             generated_by=d.get("generated_by", ""),
-            verified_by=d.get("verified_by", []),
+            verified_by=list(d.get("verified_by", [])),
             created_at=d.get("created_at", ""),
             updated_at=d.get("updated_at", ""),
         )
