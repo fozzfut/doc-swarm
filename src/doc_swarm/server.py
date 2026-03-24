@@ -46,7 +46,9 @@ def create_mcp_server():
 
         mgr = _get_mgr(ctx)
         project = Path(project_path).resolve()
-        output_dir = project / output
+        output_dir = (project / output).resolve()
+        if not output_dir.is_relative_to(project):
+            return json.dumps({"error": "output path must be within project directory"})
 
         analyzer = CodeAnalyzer(str(project))
         modules = analyzer.scan(scope)
